@@ -45,47 +45,41 @@ app.get('/v1/health', (req, res) => {
 // API: Thêm sản phẩm vào giỏ hàng (Thông minh: Tự tạo giỏ nếu khách chưa có)
 app.post('/v1/cart/items', async (req, res) => {
   const { userId, productId, quantity } = req.body;
-
   try {
-    // 1. Tìm xem user này đã có giỏ hàng trong Database chưa
-    let cartRes = await pool.query('SELECT id FROM carts WHERE user_id = $1', [userId]);
+    // Sửa thành SELECT * cho an toàn
+    let cartRes = await pool.query('SELECT * FROM carts WHERE user_id = $1', [userId]);
     let cartId;
 
-    // 2. NẾU CHƯA CÓ (Khách mới đăng ký), thì TẠO GIỎ MỚI cho họ luôn
     if (cartRes.rows.length === 0) {
       const newCart = await pool.query(
-        'INSERT INTO carts (user_id) VALUES ($1) RETURNING id', 
+        'INSERT INTO carts (user_id) VALUES ($1) RETURNING *', 
         [userId]
       );
-      cartId = newCart.rows[0].id;
+      cartId = newCart.rows[0].id; 
     } else {
-      cartId = cartRes.rows[0].id; // Nếu có rồi thì lấy ID giỏ cũ
+      cartId = cartRes.rows[0].id; 
     }
 
-    // 3. Kiểm tra xem sản phẩm đó đã nằm trong giỏ chưa
     const checkItem = await pool.query(
       'SELECT * FROM cart_items WHERE cart_id = $1 AND product_id = $2',
       [cartId, productId]
     );
 
     if (checkItem.rows.length > 0) {
-      // Nếu có rồi thì cộng dồn số lượng thêm 1
       await pool.query(
         'UPDATE cart_items SET quantity = quantity + $1 WHERE cart_id = $2 AND product_id = $3',
         [quantity, cartId, productId]
       );
     } else {
-      // Nếu chưa có thì nhét sản phẩm mới vào
       await pool.query(
         'INSERT INTO cart_items (cart_id, product_id, quantity) VALUES ($1, $2, $3)',
         [cartId, productId, quantity]
       );
     }
-
     res.status(200).json({ message: 'Thêm vào giỏ thành công!' });
   } catch (error) {
-    console.error('Lỗi thêm vào giỏ:', error);
-    res.status(500).json({ error: 'Lỗi server' });
+    console.error('Lỗi khi thêm vào giỏ:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
