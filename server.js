@@ -42,53 +42,49 @@ app.get('/v1/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'E-commerce API đang chạy!' });
 });
 
-// API: Thêm sản phẩm vào giỏ hàng
+// API: Thêm sản phẩm vào giỏ hàng (Thông minh: Tự tạo giỏ nếu khách chưa có)
 app.post('/v1/cart/items', async (req, res) => {
   const { userId, productId, quantity } = req.body;
 
-  if (!userId || !productId || !quantity) {
-    return res.status(400).json({ error: 'Thiếu thông tin userId, productId hoặc quantity' });
-  }
-
   try {
-    // 1. Tìm xem user đã có giỏ hàng (cart) nào chưa
+    // 1. Tìm xem user này đã có giỏ hàng trong Database chưa
     let cartRes = await pool.query('SELECT id FROM carts WHERE user_id = $1', [userId]);
     let cartId;
 
+    // 2. NẾU CHƯA CÓ (Khách mới đăng ký), thì TẠO GIỎ MỚI cho họ luôn
     if (cartRes.rows.length === 0) {
-      // Nếu chưa có, tạo giỏ hàng mới cho user
       const newCart = await pool.query(
-        'INSERT INTO carts (user_id) VALUES ($1) RETURNING id',
+        'INSERT INTO carts (user_id) VALUES ($1) RETURNING id', 
         [userId]
       );
       cartId = newCart.rows[0].id;
     } else {
-      cartId = cartRes.rows[0].id;
+      cartId = cartRes.rows[0].id; // Nếu có rồi thì lấy ID giỏ cũ
     }
 
-    // 2. Kiểm tra xem sản phẩm đã có trong giỏ chưa
-    const itemRes = await pool.query(
-      'SELECT id, quantity FROM cart_items WHERE cart_id = $1 AND product_id = $2',
+    // 3. Kiểm tra xem sản phẩm đó đã nằm trong giỏ chưa
+    const checkItem = await pool.query(
+      'SELECT * FROM cart_items WHERE cart_id = $1 AND product_id = $2',
       [cartId, productId]
     );
 
-    if (itemRes.rows.length > 0) {
-      // Đã có -> cộng dồn số lượng
+    if (checkItem.rows.length > 0) {
+      // Nếu có rồi thì cộng dồn số lượng thêm 1
       await pool.query(
-        'UPDATE cart_items SET quantity = quantity + $1 WHERE id = $2',
-        [quantity, itemRes.rows[0].id]
+        'UPDATE cart_items SET quantity = quantity + $1 WHERE cart_id = $2 AND product_id = $3',
+        [quantity, cartId, productId]
       );
     } else {
-      // Chưa có -> thêm mới vào giỏ
+      // Nếu chưa có thì nhét sản phẩm mới vào
       await pool.query(
         'INSERT INTO cart_items (cart_id, product_id, quantity) VALUES ($1, $2, $3)',
         [cartId, productId, quantity]
       );
     }
 
-    res.status(200).json({ message: 'Đã thêm sản phẩm vào giỏ hàng thành công!' });
+    res.status(200).json({ message: 'Thêm vào giỏ thành công!' });
   } catch (error) {
-    console.error('Lỗi khi thêm vào giỏ:', error);
+    console.error('Lỗi thêm vào giỏ:', error);
     res.status(500).json({ error: 'Lỗi server' });
   }
 });
