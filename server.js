@@ -120,6 +120,22 @@ app.get('/v1/cart/:userId', async (req, res) => {
   }
 });
 
+// API: Xóa một sản phẩm khỏi giỏ hàng
+app.delete('/v1/cart/:cartId/product/:productId', async (req, res) => {
+  const { cartId, productId } = req.params;
+
+  try {
+    await pool.query(
+      'DELETE FROM cart_items WHERE cart_id = $1 AND product_id = $2', 
+      [cartId, productId]
+    );
+    res.status(200).json({ message: 'Đã xóa sản phẩm khỏi giỏ hàng' });
+  } catch (error) {
+    console.error('Lỗi khi xóa sản phẩm:', error);
+    res.status(500).json({ error: 'Lỗi server khi xóa' });
+  }
+});
+
 // API: Checkout
 app.post('/v1/checkout', async (req, res) => {
   const { userId, cartId, shippingAddress, paymentMethod } = req.body;
