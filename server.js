@@ -7,9 +7,41 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'chuoi_bao_mat_sieu_cap_vu_tru_123';
 
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+// 1. Cấu hình Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// 2. Cấu hình Multer để lưu tạm ảnh vào Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'vutech_products', // Tên thư mục trên Cloudinary
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+  },
+});
+const upload = multer({ storage: storage });
+
+// 3. API Upload ảnh duy nhất
+app.post('/v1/admin/upload', upload.single('image'), (req, res) => {
+  try {
+    // req.file.path chính là cái link ảnh thật trên Cloudinary
+    res.status(200).json({ imageUrl: req.file.path });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi upload ảnh' });
+  }
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json()); // Để parse JSON từ request body
+
 
 // // Cấu hình kết nối PostgreSQL
 // const pool = new Pool({
@@ -234,7 +266,7 @@ app.get('/v1/orders/:userId', async (req, res) => {
 app.get('/v1/products', async (req, res) => {
   try {
     const productsRes = await pool.query(`
-      SELECT id, sku, name, price 
+      SELECT id, sku, name, price, image_url 
       FROM products 
       WHERE is_active = TRUE 
       ORDER BY name ASC
@@ -297,6 +329,20 @@ app.put('/v1/admin/orders/:id/status', async (req, res) => {
   } catch (error) {
     console.error('Lỗi cập nhật trạng thái:', error);
     res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// API Admin: Tạo sản phẩm mới kèm Link ảnh
+app.post('/v1/admin/products', async (req, res) => {
+  const { sku, name, price, inventory_count, image_url } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO products (sku, name, price, inventory_count, image_url) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [sku, name, price, inventory_count || 10, image_url]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
