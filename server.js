@@ -28,7 +28,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'vutech_products', // Tên thư mục trên Cloudinary
-    allowed_formats: ['jpg', 'png', 'jpeg'],
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'gif'] // Định dạng ảnh được phép tải lên,
   },
 });
 const upload = multer({ storage: storage });
