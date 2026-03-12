@@ -118,6 +118,21 @@ app.post('/v1/cart/items', async (req, res) => {
   }
 });
 
+// API: Lấy chi tiết 1 sản phẩm theo ID
+app.get('/v1/products/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
+    }
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('Lỗi lấy chi tiết sản phẩm:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
 // API: Xem chi tiết giỏ hàng của User
 app.get('/v1/cart/:userId', async (req, res) => {
   const { userId } = req.params;
