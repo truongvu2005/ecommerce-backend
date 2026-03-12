@@ -165,6 +165,25 @@ app.get('/v1/cart/:userId', async (req, res) => {
   }
 });
 
+// API: Cập nhật số lượng sản phẩm trong giỏ hàng
+app.put('/v1/cart/:cartId/product/:productId', async (req, res) => {
+  const { cartId, productId } = req.params;
+  const { quantity } = req.body;
+  try {
+    // Nếu khách giảm số lượng xuống 0 (hoặc nhỏ hơn), tự động xóa sản phẩm khỏi giỏ
+    if (quantity <= 0) {
+      await pool.query('DELETE FROM cart_items WHERE cart_id = $1 AND product_id = $2', [cartId, productId]);
+    } else {
+      // Ngược lại thì cập nhật đúng số lượng mới
+      await pool.query('UPDATE cart_items SET quantity = $1 WHERE cart_id = $2 AND product_id = $3', [quantity, cartId, productId]);
+    }
+    res.status(200).json({ message: 'Cập nhật số lượng thành công' });
+  } catch (error) {
+    console.error('Lỗi khi cập nhật số lượng:', error);
+    res.status(500).json({ error: 'Lỗi server khi cập nhật số lượng' });
+  }
+});
+
 // API: Checkout - Tạo đơn hàng từ giỏ hàng
 app.post('/v1/checkout', async (req, res) => {
   const { userId, cartId, shippingAddress, paymentMethod } = req.body;
