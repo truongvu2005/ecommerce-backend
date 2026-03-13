@@ -13,6 +13,18 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const JWT_SECRET = process.env.JWT_SECRET || 'chuoi_bao_mat_sieu_cap_vu_tru_123';
 
 const app = express();
+const cors = require('cors');
+
+// Cấu hình ông bảo vệ CORS: Cho phép người anh em Vercel và Localhost truy cập
+app.use(cors({
+    origin: [
+        'http://localhost:3000', 
+        'http://localhost:3001', 
+        'https://vutech-shop.vercel.app' // Thay đúng link Vercel của sếp vào đây (không có dấu gạch chéo ở cuối nhé)
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+}));
 app.use(cors());
 app.use(express.json()); // Để parse JSON từ request body
 
