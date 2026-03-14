@@ -568,6 +568,47 @@ app.post('/v1/auth/login', async (req, res) => {
   }
 });
 
+// ==========================================
+// KHU VỰC API NGƯỜI DÙNG (USER PROFILE)
+// ==========================================
+
+// API: Lấy thông tin chi tiết của 1 User
+app.get('/v1/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userRes = await pool.query(
+      'SELECT id, email, full_name, role, phone, address, avatar_url FROM users WHERE id = $1', 
+      [id]
+    );
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy user' });
+    res.status(200).json(userRes.rows[0]);
+  } catch (error) {
+    console.error('Lỗi lấy profile:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// API: Cập nhật thông tin cá nhân
+app.put('/v1/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { full_name, phone, address, avatar_url } = req.body;
+    
+    const updateRes = await pool.query(
+      `UPDATE users 
+       SET full_name = $1, phone = $2, address = $3, avatar_url = $4 
+       WHERE id = $5 
+       RETURNING id, email, full_name, role, phone, address, avatar_url`,
+      [full_name, phone, address, avatar_url, id]
+    );
+    
+    res.status(200).json({ message: 'Cập nhật thành công!', user: updateRes.rows[0] });
+  } catch (error) {
+    console.error('Lỗi cập nhật profile:', error);
+    res.status(500).json({ error: 'Lỗi server khi cập nhật' });
+  }
+});
+
 // Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
