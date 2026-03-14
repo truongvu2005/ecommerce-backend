@@ -481,7 +481,7 @@ app.delete('/v1/admin/products/:id', async (req, res) => {
   const { id } = req.params;
   try {
     // Chúng ta cập nhật is_active = FALSE thay vì DELETE để giữ lại lịch sử đơn hàng
-    await pool.query('UPDATE products SET is_active = FALSE WHERE id = $1', [id]);
+    await pool.query('UPDATE products SET is_active = FALSE, sku = sku || '-deleted-' || id WHERE id = $1', [id]);
     res.status(200).json({ message: 'Đã xóa sản phẩm khỏi cửa hàng!' });
   } catch (error) {
     console.error('Lỗi xóa sản phẩm:', error);
