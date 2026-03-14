@@ -144,6 +144,16 @@ app.get('/v1/products/:id', async (req, res) => {
   }
 });
 
+// API: Lấy danh sách danh mục
+app.get('/v1/categories', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM categories ORDER BY id ASC');
+    res.status(200).json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi lấy danh mục' });
+  }
+});
+
 // API: Xem chi tiết giỏ hàng của User
 app.get('/v1/cart/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -336,17 +346,48 @@ app.get('/v1/orders/detail/:orderId', async (req, res) => {
   }
 });
 
-// API: Lấy danh sách toàn bộ sản phẩm
+// API: Lấy danh sách sản phẩm (Có Phân trang & Lọc theo Danh mục)
 app.get('/v1/products', async (req, res) => {
   try {
-    const productsRes = await pool.query(`
-      SELECT id, sku, name, price, image_url 
-      FROM products 
-      WHERE is_active = TRUE 
-      ORDER BY name ASC
-    `);
-    
-    res.status(200).json(productsRes.rows);
+    // Nhận tham số từ URL (VD: ?page=1&limit=8&category=2)
+    const { page = 1, limit = 8, category } = req.query;
+    const offset = (page - 1) * limit;
+
+    let queryStr = 'SELECT * FROM products WHERE is_active = TRUE';
+    let countQueryStr = 'SELECT COUNT(*) FROM products WHERE is_active = TRUE';
+    const queryParams = [];
+    const countParams = [];
+
+    // Nếu có chọn danh mục thì thêm điều kiện lọc
+    if (category) {
+      queryStr += ' AND category_id = $1';
+      countQueryStr += ' AND category_id = $1';
+      queryParams.push(category);
+      countParams.push(category);
+    }
+
+    // Đếm tổng số lượng sản phẩm để FE làm nút phân trang
+    const countRes = await pool.query(countQueryStr, countParams);
+    const totalItems = parseInt(countRes.rows[0].count);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Gắn thêm LIMIT và OFFSET vào câu query chính
+    queryParams.push(limit);
+    queryParams.push(offset);
+    queryStr += ` ORDER BY id DESC LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
+
+    const productsRes = await pool.query(queryStr, queryParams);
+
+    // Trả về cấu trúc JSON mới (Bao gồm Data và Thông tin Phân trang)
+    res.status(200).json({
+      data: productsRes.rows,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: parseInt(page),
+        limit: parseInt(limit)
+      }
+    });
   } catch (error) {
     console.error('Lỗi lấy danh sách sản phẩm:', error);
     res.status(500).json({ error: 'Lỗi server khi lấy sản phẩm' });
