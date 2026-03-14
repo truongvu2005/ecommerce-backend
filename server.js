@@ -347,47 +347,46 @@ app.get('/v1/orders/detail/:orderId', async (req, res) => {
   }
 });
 
-// API: Lấy danh sách sản phẩm (Có Phân trang & Lọc theo Danh mục)
+// API: Lấy danh sách sản phẩm (Có Phân trang, Lọc Danh mục & TÌM KIẾM)
 app.get('/v1/products', async (req, res) => {
   try {
-    // Nhận tham số từ URL (VD: ?page=1&limit=8&category=2)
-    const { page = 1, limit = 8, category } = req.query;
+    const { page = 1, limit = 8, category, search } = req.query; // Nhận thêm chữ search
     const offset = (page - 1) * limit;
 
     let queryStr = 'SELECT * FROM products WHERE is_active = TRUE';
     let countQueryStr = 'SELECT COUNT(*) FROM products WHERE is_active = TRUE';
     const queryParams = [];
-    const countParams = [];
+    let paramIndex = 1;
 
-    // Nếu có chọn danh mục thì thêm điều kiện lọc
+    // Lọc theo danh mục
     if (category) {
-      queryStr += ' AND category_id = $1';
-      countQueryStr += ' AND category_id = $1';
+      queryStr += ` AND category_id = $${paramIndex}`;
+      countQueryStr += ` AND category_id = $${paramIndex}`;
       queryParams.push(category);
-      countParams.push(category);
+      paramIndex++;
     }
 
-    // Đếm tổng số lượng sản phẩm để FE làm nút phân trang
-    const countRes = await pool.query(countQueryStr, countParams);
+    // Lọc theo từ khóa tìm kiếm (Dùng ILIKE để không phân biệt hoa thường)
+    if (search) {
+      queryStr += ` AND name ILIKE $${paramIndex}`;
+      countQueryStr += ` AND name ILIKE $${paramIndex}`;
+      queryParams.push(`%${search}%`); // % bao quanh để tìm từ nằm giữa câu
+      paramIndex++;
+    }
+
+    const countRes = await pool.query(countQueryStr, queryParams);
     const totalItems = parseInt(countRes.rows[0].count);
     const totalPages = Math.ceil(totalItems / limit);
 
-    // Gắn thêm LIMIT và OFFSET vào câu query chính
     queryParams.push(limit);
     queryParams.push(offset);
-    queryStr += ` ORDER BY id DESC LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
+    queryStr += ` ORDER BY id DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
 
     const productsRes = await pool.query(queryStr, queryParams);
 
-    // Trả về cấu trúc JSON mới (Bao gồm Data và Thông tin Phân trang)
     res.status(200).json({
       data: productsRes.rows,
-      pagination: {
-        totalItems,
-        totalPages,
-        currentPage: parseInt(page),
-        limit: parseInt(limit)
-      }
+      pagination: { totalItems, totalPages, currentPage: parseInt(page), limit: parseInt(limit) }
     });
   } catch (error) {
     console.error('Lỗi lấy danh sách sản phẩm:', error);
