@@ -350,7 +350,7 @@ app.get('/v1/orders/detail/:orderId', async (req, res) => {
 // API: Lấy danh sách sản phẩm (Có Phân trang, Lọc Danh mục & TÌM KIẾM)
 app.get('/v1/products', async (req, res) => {
   try {
-    const { page = 1, limit = 8, category, search } = req.query; // Nhận thêm chữ search
+    const { page = 1, limit = 8, category, search } = req.query; // Nhớ là phải có chữ 'search' ở đây
     const offset = (page - 1) * limit;
 
     let queryStr = 'SELECT * FROM products WHERE is_active = TRUE';
@@ -358,7 +358,6 @@ app.get('/v1/products', async (req, res) => {
     const queryParams = [];
     let paramIndex = 1;
 
-    // Lọc theo danh mục
     if (category) {
       queryStr += ` AND category_id = $${paramIndex}`;
       countQueryStr += ` AND category_id = $${paramIndex}`;
@@ -366,11 +365,11 @@ app.get('/v1/products', async (req, res) => {
       paramIndex++;
     }
 
-    // Lọc theo từ khóa tìm kiếm (Dùng ILIKE để không phân biệt hoa thường)
+    // --- ĐOẠN QUAN TRỌNG NHẤT ĐỂ TÌM KIẾM ---
     if (search) {
       queryStr += ` AND name ILIKE $${paramIndex}`;
       countQueryStr += ` AND name ILIKE $${paramIndex}`;
-      queryParams.push(`%${search}%`); // % bao quanh để tìm từ nằm giữa câu
+      queryParams.push(`%${search}%`); 
       paramIndex++;
     }
 
