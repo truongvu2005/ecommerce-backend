@@ -447,13 +447,13 @@ app.put('/v1/admin/orders/:id/status', async (req, res) => {
   }
 });
 
-// API Admin: Tạo sản phẩm mới kèm Link ảnh
+// API Admin: Tạo sản phẩm mới kèm Link ảnh và Danh mục
 app.post('/v1/admin/products', async (req, res) => {
-  const { sku, name, price, inventory_count, image_url } = req.body;
+  const { sku, name, price, inventory_count, image_url, category_id } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO products (sku, name, price, inventory_count, image_url) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [sku, name, price, inventory_count || 10, image_url]
+      'INSERT INTO products (sku, name, price, inventory_count, image_url, category_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [sku, name, price, inventory_count || 10, image_url, category_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -464,11 +464,11 @@ app.post('/v1/admin/products', async (req, res) => {
 // API Admin: Cập nhật (Sửa) thông tin sản phẩm
 app.put('/v1/admin/products/:id', async (req, res) => {
   const { id } = req.params;
-  const { sku, name, price, inventory_count, image_url } = req.body;
+  const { sku, name, price, inventory_count, image_url, category_id } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE products SET sku = $1, name = $2, price = $3, inventory_count = $4, image_url = $5 WHERE id = $6 RETURNING *',
-      [sku, name, price, inventory_count || 10, image_url, id]
+      'UPDATE products SET sku = $1, name = $2, price = $3, inventory_count = $4, image_url = $5, category_id = $6 WHERE id = $7 RETURNING *',
+      [sku, name, price, inventory_count || 10, image_url, category_id || null, id]
     );
     res.status(200).json({ message: 'Cập nhật thành công!', product: result.rows[0] });
   } catch (error) {
