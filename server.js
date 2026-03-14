@@ -310,6 +310,32 @@ app.get('/v1/orders/:userId', async (req, res) => {
   }
 });
 
+// API: Xem chi tiết 1 đơn hàng (bao gồm các sản phẩm bên trong)
+app.get('/v1/orders/detail/:orderId', async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    // 1. Lấy thông tin tổng quan của đơn hàng
+    const orderRes = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+    if (orderRes.rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+
+    // 2. Lấy danh sách sản phẩm trong đơn đó (JOIN với bảng products để lấy tên và ảnh)
+    const itemsRes = await pool.query(`
+      SELECT oi.quantity, oi.unit_price, p.name, p.image_url
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = $1
+    `, [orderId]);
+
+    res.status(200).json({
+      order: orderRes.rows[0],
+      items: itemsRes.rows
+    });
+  } catch (error) {
+    console.error('Lỗi lấy chi tiết đơn:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
 // API: Lấy danh sách toàn bộ sản phẩm
 app.get('/v1/products', async (req, res) => {
   try {
