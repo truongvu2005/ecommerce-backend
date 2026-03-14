@@ -174,6 +174,7 @@ app.get('/v1/cart/:userId', async (req, res) => {
       SELECT 
         ci.product_id AS "productId", 
         p.name, 
+        p.image_url,
         ci.quantity, 
         p.price AS "unitPrice", 
         (ci.quantity * p.price) AS "subTotal"
