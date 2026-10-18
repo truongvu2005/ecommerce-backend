@@ -1,60 +1,74 @@
 const { cloudinary } = require('../config/cloudinary');
 
-function getManagedProductImagePublicId(imageUrl) {
-  if (typeof imageUrl !== 'string' || !imageUrl) {
+/**
+ * Trích xuất public_id từ đường dẫn Cloudinary URL
+ * Hỗ trợ các định dạng URL có hoặc không có transformations, version (v12345...), và mọi đuôi ảnh
+ */
+function getCloudinaryPublicId(imageUrl) {
+  if (typeof imageUrl !== 'string' || !imageUrl || !imageUrl.includes('res.cloudinary.com')) {
     return null;
   }
 
   try {
     const url = new URL(imageUrl);
-    const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    const pathname = url.pathname; // /<cloud_name>/image/upload/...
+    const uploadIndex = pathname.indexOf('/upload/');
+    if (uploadIndex === -1) return null;
 
-    if (
-      url.hostname !== 'res.cloudinary.com' ||
-      segments[1] !== 'image' ||
-      segments[2] !== 'upload'
-    ) {
-      return null;
+    let pathAfterUpload = pathname.substring(uploadIndex + 8); // Bỏ qua '/upload/'
+
+    // Tách version (ví dụ: v1773500414/...)
+    const versionMatch = pathAfterUpload.match(/(?:^|\/)v\d+\/(.+)$/);
+    if (versionMatch) {
+      pathAfterUpload = versionMatch[1];
+    } else {
+      // Nếu không có version, loại bỏ transformation segment đầu tiên nếu có (vd: w_500,c_fill/...)
+      const parts = pathAfterUpload.split('/');
+      if (parts[0] && (parts[0].includes(',') || /^[a-z]_[a-z0-9_-]+$/i.test(parts[0]))) {
+        parts.shift();
+      }
+      pathAfterUpload = parts.join('/');
     }
 
-    const uploadIndex = segments.indexOf('upload');
-    const uploadedPath = segments.slice(uploadIndex + 1);
-    const versionIndex = uploadedPath.findIndex((segment) => /^v\d+$/.test(segment));
-    const folderIndex = uploadedPath.indexOf('vutech_products');
-    const publicPath = versionIndex >= 0
-      ? uploadedPath.slice(versionIndex + 1)
-      : folderIndex >= 0
-        ? uploadedPath.slice(folderIndex)
-        : [];
-
-    if (!publicPath.length || publicPath[0] !== 'vutech_products') {
-      return null;
+    // Loại bỏ phần mở rộng đuôi file (.jpg, .png, .webp, .jpeg, v.v.)
+    const dotIndex = pathAfterUpload.lastIndexOf('.');
+    if (dotIndex !== -1) {
+      pathAfterUpload = pathAfterUpload.substring(0, dotIndex);
     }
 
-    const lastSegment = publicPath[publicPath.length - 1];
-    publicPath[publicPath.length - 1] = lastSegment.replace(/\.(jpe?g|png|webp|gif)$/i, '');
-    const publicId = publicPath.join('/');
-
-    if (publicPath.some((segment) =>
-      !segment || segment === '.' || segment === '..' || segment.includes('/')
-    )) {
-      return null;
-    }
-
-    return publicId;
-  } catch {
+    return pathAfterUpload ? decodeURIComponent(pathAfterUpload) : null;
+  } catch (err) {
+    console.error('Lỗi phân tích public_id từ URL Cloudinary:', err);
     return null;
   }
 }
 
-async function deleteProductImage(imageUrl) {
-  const publicId = getManagedProductImagePublicId(imageUrl);
+/**
+ * Xóa một ảnh khỏi Cloudinary và làm mới CDN cache
+ */
+async function deleteImageFromCloudinary(imageUrl) {
+  const publicId = getCloudinaryPublicId(imageUrl);
   if (!publicId) {
     return null;
   }
 
-  const result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
-  return result.result;
+  try {
+    console.log(`Đang xóa ảnh Cloudinary với publicId: ${publicId}`);
+    const result = await cloudinary.uploader.destroy(publicId, { 
+      resource_type: 'image', 
+      invalidate: true 
+    });
+    console.log(`Kết quả xóa Cloudinary (${publicId}):`, result);
+    return result;
+  } catch (error) {
+    console.error(`Lỗi khi xóa ảnh Cloudinary (${publicId}):`, error.message);
+    return null;
+  }
 }
 
-module.exports = { deleteProductImage, getManagedProductImagePublicId };
+module.exports = { 
+  deleteImageFromCloudinary, 
+  deleteProductImage: deleteImageFromCloudinary, 
+  getCloudinaryPublicId,
+  getManagedProductImagePublicId: getCloudinaryPublicId 
+};

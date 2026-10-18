@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { deleteImageFromCloudinary } = require('../services/cloudinaryService');
 
 async function getUserProfile(req, res, next) {
   try {
@@ -31,6 +32,17 @@ async function updateUserProfile(req, res, next) {
 
     const { full_name, phone, address, avatar_url } = req.body;
     
+    // Nếu đổi avatar mới khác avatar cũ, tự động xóa avatar cũ trên Cloudinary
+    if (avatar_url) {
+      const oldUserRes = await pool.query('SELECT avatar_url FROM users WHERE id = $1', [id]);
+      const oldAvatarUrl = oldUserRes.rows[0]?.avatar_url;
+      if (oldAvatarUrl && oldAvatarUrl !== avatar_url) {
+        deleteImageFromCloudinary(oldAvatarUrl).catch(err => {
+          console.warn('Lỗi khi xóa avatar cũ trên Cloudinary:', err.message);
+        });
+      }
+    }
+
     const updateRes = await pool.query(
       `UPDATE users 
        SET full_name = $1, phone = $2, address = $3, avatar_url = $4 

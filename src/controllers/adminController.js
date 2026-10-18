@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { deleteProductImage } = require('../services/cloudinaryService');
+const { deleteImageFromCloudinary } = require('../services/cloudinaryService');
 
 function uploadImage(req, res) {
   try {
@@ -65,6 +65,17 @@ async function updateProduct(req, res, next) {
   const { id } = req.params;
   const { sku, name, price, inventory_count, image_url, category_id } = req.body;
   try {
+    // Nếu có ảnh mới khác ảnh cũ, tự động xóa ảnh cũ trên Cloudinary để giải phóng dung lượng
+    if (image_url) {
+      const oldProd = await pool.query('SELECT image_url FROM products WHERE id = $1', [id]);
+      const oldImageUrl = oldProd.rows[0]?.image_url;
+      if (oldImageUrl && oldImageUrl !== image_url) {
+        deleteImageFromCloudinary(oldImageUrl).catch(err => {
+          console.warn('Lỗi khi xóa ảnh cũ sản phẩm:', err.message);
+        });
+      }
+    }
+
     const result = await pool.query(
       'UPDATE products SET sku = $1, name = $2, price = $3, inventory_count = $4, image_url = $5, category_id = $6 WHERE id = $7 RETURNING *',
       [sku, name, price, inventory_count || 10, image_url, category_id || null, id]
@@ -81,7 +92,7 @@ async function deleteProduct(req, res, next) {
     const prodRes = await pool.query('SELECT image_url FROM products WHERE id = $1', [id]);
     if (prodRes.rows.length > 0 && prodRes.rows[0].image_url) {
       try {
-        await deleteProductImage(prodRes.rows[0].image_url);
+        await deleteImageFromCloudinary(prodRes.rows[0].image_url);
       } catch (cloudErr) {
         console.warn('Cảnh báo xóa ảnh Cloudinary:', cloudErr.message);
       }
